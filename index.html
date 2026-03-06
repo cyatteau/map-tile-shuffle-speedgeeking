@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Map Tiles Puzzle</title>
+
+    <style>
+      :root {
+        --tile: clamp(96px, 12vw, 155px);
+        --gap: 4px;
+        --cols: 3;
+        --rows: 3;
+
+        --bg: #f6f7fb;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --border: rgba(15, 23, 42, 0.12);
+        --border2: rgba(15, 23, 42, 0.18);
+        --shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        --shadow2: 0 12px 28px rgba(15, 23, 42, 0.12);
+        --accent: #2563eb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+          Helvetica, Arial;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        padding: 16px;
+      }
+
+      .app {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 12px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+      }
+
+      .search-wrap {
+        position: relative;
+        flex: 1 1 320px;
+        min-width: min(520px, 100%);
+      }
+
+      input {
+        width: 100%;
+        padding: 11px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+        outline: none;
+        transition: box-shadow 140ms, border-color 140ms;
+      }
+
+      input::placeholder {
+        color: #94a3b8;
+      }
+
+      input:focus {
+        border-color: rgba(37, 99, 235, 0.45);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+
+      .suggestions {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow2);
+        overflow: hidden;
+        z-index: 100;
+        max-height: 280px;
+        overflow-y: auto;
+      }
+
+      .suggestion-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        font-size: 14px;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+      }
+
+      .suggestion-item:last-child {
+        border-bottom: none;
+      }
+
+      .suggestion-item:hover,
+      .suggestion-item.active {
+        background: rgba(37, 99, 235, 0.08);
+      }
+
+      .select-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        flex: 0 1 230px;
+      }
+
+      select {
+        width: 230px;
+        max-width: 100%;
+        padding: 11px 36px 11px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+        outline: none;
+        cursor: pointer;
+        transition: box-shadow 140ms, border-color 140ms;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+      }
+
+      select:focus {
+        border-color: rgba(37, 99, 235, 0.45);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+
+      .select-wrap::after {
+        content: '';
+        position: absolute;
+        right: 12px;
+        width: 10px;
+        height: 10px;
+        border-right: 2px solid rgba(15, 23, 42, 0.45);
+        border-bottom: 2px solid rgba(15, 23, 42, 0.45);
+        transform: rotate(45deg);
+        pointer-events: none;
+      }
+
+      button {
+        padding: 11px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 650;
+        transition: transform 120ms, box-shadow 120ms, background 120ms,
+          border-color 120ms;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+        border-color: var(--border2);
+        background: #fbfdff;
+      }
+
+      button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+
+      #go {
+        border-color: rgba(37, 99, 235, 0.28);
+        background: rgba(37, 99, 235, 0.07);
+      }
+
+      #go:hover {
+        background: rgba(37, 99, 235, 0.11);
+        border-color: rgba(37, 99, 235, 0.34);
+      }
+
+      .wrap {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        align-items: start;
+      }
+
+      .panel {
+        padding: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+      }
+
+      .panel h2 {
+        margin: 0 0 8px 2px;
+        font-size: 13px;
+        font-weight: 750;
+        color: var(--muted);
+        letter-spacing: 0.2px;
+      }
+
+      .board {
+        display: grid;
+        grid-template-columns: repeat(var(--cols), var(--tile));
+        grid-template-rows: repeat(var(--rows), var(--tile));
+        gap: var(--gap);
+        padding: var(--gap);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow2);
+        width: fit-content;
+      }
+
+      .tile {
+        width: var(--tile);
+        height: var(--tile);
+        background-size: cover;
+        background-position: center;
+        cursor: pointer;
+        border-radius: 10px;
+        border: 1px solid rgba(15, 23, 42, 0.1);
+        box-shadow: 0 10px 18px rgba(15, 23, 42, 0.14);
+        transition: transform 120ms ease, box-shadow 140ms ease,
+          filter 140ms ease;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .tile::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 10px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+        pointer-events: none;
+        opacity: 0.55;
+      }
+
+      .tile:hover {
+        filter: saturate(1.04) contrast(1.02);
+        box-shadow: 0 14px 24px rgba(15, 23, 42, 0.18);
+        transform: translateY(-1px);
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      #meta,
+      #status {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      #status {
+        margin-top: 6px;
+      }
+
+      @media (max-width: 780px) {
+        .wrap {
+          grid-template-columns: 1fr;
+        }
+
+        :root {
+          --tile: clamp(92px, 28vw, 135px);
+          --gap: 4px;
+        }
+
+        .search-wrap {
+          flex: 1 1 100%;
+          min-width: 100%;
+        }
+
+        .select-wrap,
+        select {
+          width: 100%;
+          flex: 1 1 100%;
+        }
+
+        .board {
+          width: fit-content;
+          max-width: 100%;
+        }
+
+        .controls {
+          position: sticky;
+          top: 12px;
+          z-index: 50;
+        }
+      }
+
+      @media (max-width: 380px) {
+        :root {
+          --tile: clamp(84px, 27vw, 120px);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <div class="controls">
+        <div class="search-wrap">
+          <input
+            id="q"
+            autocomplete="off"
+            placeholder="Enter a location (ex: Pike Place Market Seattle)"
+          />
+          <div
+            id="suggestions"
+            class="suggestions hidden"
+            role="listbox"
+            aria-label="Location suggestions"
+          ></div>
+        </div>
+
+        <div class="select-wrap" title="Basemap style">
+          <select id="style" aria-label="Basemap style"></select>
+        </div>
+
+        <div class="select-wrap" title="Zoom level">
+          <select id="zoom" aria-label="Zoom level"></select>
+        </div>
+
+        <div class="select-wrap" title="Grid size">
+          <select id="grid" aria-label="Grid size">
+            <option value="2">2 x 2</option>
+            <option value="3" selected>3 x 3</option>
+            <option value="4">4 x 4</option>
+            <option value="5">5 x 5</option>
+          </select>
+        </div>
+
+        <button id="go">Generate</button>
+        <button id="reshuffle" class="hidden">Reshuffle</button>
+        <button id="toggle" class="hidden">Show solution</button>
+      </div>
+
+      <div class="wrap">
+        <div class="panel">
+          <h2>Puzzle</h2>
+          <div id="puzzle" class="board hidden"></div>
+        </div>
+        <div class="panel">
+          <h2>Solution</h2>
+          <div id="solution" class="board hidden"></div>
+        </div>
+      </div>
+
+      <div id="meta"></div>
+      <div id="status"></div>
+    </div>
+
+    <script>
+      const ARCGIS_TOKEN =
+        'YOUR_ARCGIS_TOKEN'
+      const BASE_URL =
+        'https://static-map-tiles-api.arcgis.com/arcgis/rest/services/static-basemap-tiles-service/v1'
+      const GEOCODE_BASE =
+        'https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer'
+
+      const DEFAULT_STYLE = 'arcgis/community'
+      const DEFAULT_UI_ZOOM = 16
+      const DEFAULT_GRID_SIZE = 3
+
+      let CURRENT_STYLE = DEFAULT_STYLE
+      let CURRENT_STYLE_NAME = 'ArcGIS Community'
+      let CURRENT_UI_ZOOM = DEFAULT_UI_ZOOM
+      let CURRENT_GRID_SIZE = DEFAULT_GRID_SIZE
+      let LAST_LOC = null
+      let LAST_TILES = []
+      let selected = []
+      let moveCount = 0
+      let activeSuggestionIndex = -1
+      let suggestionItems = []
+      let selectedSuggestion = null
+      let suggestTimer = null
+
+      const $ = id => document.getElementById(id)
+      const puzzleEl = $('puzzle')
+      const solutionEl = $('solution')
+      const statusEl = $('status')
+      const metaEl = $('meta')
+      const toggleBtn = $('toggle')
+      const reshuffleBtn = $('reshuffle')
+      const styleSelect = $('style')
+      const zoomSelect = $('zoom')
+      const gridSelect = $('grid')
+      const qInput = $('q')
+      const suggestionsEl = $('suggestions')
+
+      function setStatus(msg) {
+        statusEl.textContent = msg || ''
+      }
+
+      function updateBoardGridVars() {
+        document.documentElement.style.setProperty('--rows', CURRENT_GRID_SIZE)
+        document.documentElement.style.setProperty('--cols', CURRENT_GRID_SIZE)
+      }
+
+      function updateTileSizeForGrid() {
+        let tileValue = 'clamp(96px, 12vw, 155px)'
+        if (CURRENT_GRID_SIZE === 2) tileValue = 'clamp(120px, 16vw, 180px)'
+        if (CURRENT_GRID_SIZE === 3) tileValue = 'clamp(96px, 12vw, 155px)'
+        if (CURRENT_GRID_SIZE === 4) tileValue = 'clamp(76px, 10vw, 120px)'
+        if (CURRENT_GRID_SIZE === 5) tileValue = 'clamp(60px, 8vw, 96px)'
+        document.documentElement.style.setProperty('--tile', tileValue)
+      }
+
+      function getTileZoom() {
+        return Math.max(0, CURRENT_UI_ZOOM - 1)
+      }
+
+      function latLonToTile(lat, lon, z) {
+        const n = 2 ** z
+        const rad = (lat * Math.PI) / 180
+        return {
+          x: Math.floor(((lon + 180) / 360) * n),
+          y: Math.floor(
+            ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
+              n
+          ),
+          z
+        }
+      }
+
+      function tileUrl(z, x, y) {
+        return `${BASE_URL}/${CURRENT_STYLE}/static/tile/${z}/${y}/${x}?token=${encodeURIComponent(
+          ARCGIS_TOKEN
+        )}`
+      }
+
+      function shuffle(arr) {
+        const copy = [...arr]
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          ;[copy[i], copy[j]] = [copy[j], copy[i]]
+        }
+        return copy
+      }
+
+      async function geocode(singleLine, magicKey = '') {
+        const url =
+          `${GEOCODE_BASE}/findAddressCandidates` +
+          `?f=pjson&maxLocations=1&outFields=*&outSR=4326` +
+          `&SingleLine=${encodeURIComponent(singleLine)}` +
+          (magicKey ? `&magicKey=${encodeURIComponent(magicKey)}` : '') +
+          `&token=${encodeURIComponent(ARCGIS_TOKEN)}`
+
+        const res = await fetch(url)
+        const data = await res.json()
+
+        if (data.error) {
+          throw new Error(data.error.message || 'Geocoding error')
+        }
+
+        const c = data.candidates?.[0]
+        if (!c) return null
+
+        return {
+          lat: c.location.y,
+          lon: c.location.x,
+          address: c.address
+        }
+      }
+
+      async function suggestLocations(text) {
+        const url =
+          `${GEOCODE_BASE}/suggest` +
+          `?f=pjson&maxSuggestions=6` +
+          `&text=${encodeURIComponent(text)}` +
+          `&token=${encodeURIComponent(ARCGIS_TOKEN)}`
+
+        const res = await fetch(url)
+        const data = await res.json()
+
+        if (data.error) {
+          throw new Error(data.error.message || 'Suggest error')
+        }
+
+        return data.suggestions || []
+      }
+
+      function hideSuggestions() {
+        suggestionsEl.innerHTML = ''
+        suggestionsEl.classList.add('hidden')
+        suggestionItems = []
+        activeSuggestionIndex = -1
+      }
+
+      function applySuggestion(item) {
+        selectedSuggestion = item
+        qInput.value = item.text
+        hideSuggestions()
+      }
+
+      function renderSuggestions(items) {
+        suggestionsEl.innerHTML = ''
+        suggestionItems = items
+        activeSuggestionIndex = -1
+
+        if (!items.length) {
+          hideSuggestions()
+          return
+        }
+
+        const frag = document.createDocumentFragment()
+
+        items.forEach(item => {
+          const div = document.createElement('div')
+          div.className = 'suggestion-item'
+          div.textContent = item.text
+          div.setAttribute('role', 'option')
+
+          div.addEventListener('mousedown', e => {
+            e.preventDefault()
+            applySuggestion(item)
+          })
+
+          frag.appendChild(div)
+        })
+
+        suggestionsEl.appendChild(frag)
+        suggestionsEl.classList.remove('hidden')
+      }
+
+      function highlightActiveSuggestion() {
+        ;[...suggestionsEl.children].forEach((el, i) => {
+          el.classList.toggle('active', i === activeSuggestionIndex)
+        })
+      }
+
+      function makeTiles(lat, lon) {
+        const tileZoom = getTileZoom()
+        const center = latLonToTile(lat, lon, tileZoom)
+        const half = Math.floor(CURRENT_GRID_SIZE / 2)
+        const tiles = []
+
+        for (let r = 0; r < CURRENT_GRID_SIZE; r++) {
+          for (let c = 0; c < CURRENT_GRID_SIZE; c++) {
+            const x = center.x + (c - half)
+            const y = center.y + (r - half)
+            const id = `${center.z}/${y}/${x}`
+            tiles.push({ id, url: tileUrl(center.z, x, y) })
+          }
+        }
+
+        return tiles
+      }
+
+      function clearBoards() {
+        puzzleEl.innerHTML = ''
+        solutionEl.innerHTML = ''
+        selected = []
+        moveCount = 0
+      }
+
+      function isSolved() {
+        const tiles = [...puzzleEl.querySelectorAll('.tile')]
+        return (
+          tiles.length &&
+          tiles.every(t => t.dataset.current === t.dataset.correct)
+        )
+      }
+
+      function updateMeta() {
+        if (!LAST_LOC) return
+        metaEl.textContent = `Location: ${LAST_LOC.address} • Style: ${CURRENT_STYLE_NAME} • Zoom: ${CURRENT_UI_ZOOM} • Grid: ${CURRENT_GRID_SIZE}x${CURRENT_GRID_SIZE} • Moves: ${moveCount}`
+      }
+
+      function onTileClick(e) {
+        const t = e.currentTarget
+        if (selected.includes(t)) return
+
+        t.style.transform = 'scale(1.05)'
+        selected.push(t)
+
+        if (selected.length !== 2) return
+
+        setTimeout(() => {
+          const [a, b] = selected
+          const aBg = a.style.backgroundImage
+          const aCur = a.dataset.current
+
+          a.style.backgroundImage = b.style.backgroundImage
+          a.dataset.current = b.dataset.current
+
+          b.style.backgroundImage = aBg
+          b.dataset.current = aCur
+
+          selected.forEach(x => (x.style.transform = 'scale(1)'))
+          selected = []
+          moveCount++
+          updateMeta()
+
+          if (isSolved()) {
+            setStatus(`Solved in ${moveCount} moves 🎉`)
+          }
+        }, 160)
+      }
+
+      function renderBoards(tiles) {
+        const idToUrl = new Map(tiles.map(t => [t.id, t.url]))
+        const correct = tiles.map(t => t.id)
+        const shuffled = shuffle(correct)
+
+        const pFrag = document.createDocumentFragment()
+        for (let i = 0; i < correct.length; i++) {
+          const el = document.createElement('div')
+          el.className = 'tile'
+          el.dataset.correct = correct[i]
+          el.dataset.current = shuffled[i]
+          el.style.backgroundImage = `url("${idToUrl.get(shuffled[i])}")`
+          el.addEventListener('click', onTileClick)
+          pFrag.appendChild(el)
+        }
+        puzzleEl.appendChild(pFrag)
+
+        const sFrag = document.createDocumentFragment()
+        for (let i = 0; i < correct.length; i++) {
+          const el = document.createElement('div')
+          el.className = 'tile'
+          el.style.backgroundImage = `url("${idToUrl.get(correct[i])}")`
+          sFrag.appendChild(el)
+        }
+        solutionEl.appendChild(sFrag)
+      }
+
+      function rerenderPuzzleOnly() {
+        if (!LAST_TILES.length) return
+        puzzleEl.innerHTML = ''
+        solutionEl.innerHTML = ''
+        selected = []
+        moveCount = 0
+        renderBoards(LAST_TILES)
+        solutionEl.classList.add('hidden')
+        toggleBtn.textContent = 'Show solution'
+        updateMeta()
+        setStatus('')
+      }
+
+      const FALLBACK_STYLES = [
+        {
+          label: 'ArcGIS Navigation',
+          value: 'arcgis/navigation',
+          group: 'ARCGIS • Streets'
+        },
+        {
+          label: 'ArcGIS Navigation Night',
+          value: 'arcgis/navigation-night',
+          group: 'ARCGIS • Streets'
+        },
+        {
+          label: 'ArcGIS Streets',
+          value: 'arcgis/streets',
+          group: 'ARCGIS • Streets'
+        },
+        {
+          label: 'ArcGIS Streets Night',
+          value: 'arcgis/streets-night',
+          group: 'ARCGIS • Streets'
+        },
+        {
+          label: 'ArcGIS Community',
+          value: 'arcgis/community',
+          group: 'ARCGIS • Streets'
+        },
+        {
+          label: 'ArcGIS Outdoor',
+          value: 'arcgis/outdoor',
+          group: 'ARCGIS • Topography'
+        },
+        {
+          label: 'ArcGIS Light Gray',
+          value: 'arcgis/light-gray',
+          group: 'ARCGIS • Reference'
+        },
+        {
+          label: 'ArcGIS Dark Gray',
+          value: 'arcgis/dark-gray',
+          group: 'ARCGIS • Reference'
+        },
+        {
+          label: 'ArcGIS Human Geography',
+          value: 'arcgis/human-geography',
+          group: 'ARCGIS • Creative'
+        },
+        {
+          label: 'ArcGIS Human Geography Dark',
+          value: 'arcgis/human-geography-dark',
+          group: 'ARCGIS • Creative'
+        },
+        {
+          label: 'ArcGIS Nova',
+          value: 'arcgis/nova',
+          group: 'ARCGIS • Creative'
+        },
+        {
+          label: 'ArcGIS Midcentury',
+          value: 'arcgis/midcentury',
+          group: 'ARCGIS • Creative'
+        },
+        {
+          label: 'ArcGIS Newspaper',
+          value: 'arcgis/newspaper',
+          group: 'ARCGIS • Creative'
+        }
+      ]
+
+      function fillStyleSelect(options, preferredValue) {
+        styleSelect.innerHTML = ''
+        const groups = new Map()
+
+        for (const o of options) {
+          const g = o.group || 'Other'
+          if (!groups.has(g)) groups.set(g, [])
+          groups.get(g).push(o)
+        }
+
+        const sortedGroups = [...groups.entries()].sort(([a], [b]) =>
+          a.localeCompare(b)
+        )
+
+        for (const [groupName, items] of sortedGroups) {
+          items.sort((a, b) => a.label.localeCompare(b.label))
+          const og = document.createElement('optgroup')
+          og.label = groupName
+
+          for (const o of items) {
+            const opt = document.createElement('option')
+            opt.value = o.value
+            opt.textContent = o.label
+            og.appendChild(opt)
+          }
+
+          styleSelect.appendChild(og)
+        }
+
+        const preferredOk =
+          preferredValue &&
+          [...styleSelect.options].some(o => o.value === preferredValue)
+
+        styleSelect.value = preferredOk
+          ? preferredValue
+          : styleSelect.options[0]?.value || DEFAULT_STYLE
+
+        CURRENT_STYLE = styleSelect.value || DEFAULT_STYLE
+        CURRENT_STYLE_NAME =
+          styleSelect.selectedOptions[0]?.textContent || CURRENT_STYLE
+      }
+
+      async function initStylePicker() {
+        fillStyleSelect(FALLBACK_STYLES, DEFAULT_STYLE)
+
+        try {
+          const url = `${BASE_URL}/self?f=pjson&token=${encodeURIComponent(
+            ARCGIS_TOKEN
+          )}`
+          const res = await fetch(url)
+          const data = await res.json()
+          const styles = Array.isArray(data.styles) ? data.styles : []
+
+          const usable = styles
+            .filter(
+              s =>
+                s &&
+                s.complete === true &&
+                s.deprecated !== true &&
+                typeof s.path === 'string'
+            )
+            .map(s => {
+              const value = String(s.path).replace(/^\//, '')
+              const family = (s.styleFamily || 'Other').toString().toUpperCase()
+              const group = (s.group || 'Other').toString()
+              return {
+                label: s.name || value,
+                value,
+                group: `${family} • ${group}`
+              }
+            })
+            .sort((a, b) => {
+              if (a.group !== b.group) return a.group.localeCompare(b.group)
+              return a.label.localeCompare(b.label)
+            })
+
+          if (usable.length) {
+            fillStyleSelect(usable, styleSelect.value || DEFAULT_STYLE)
+          }
+        } catch (err) {
+          console.warn('Style picker fallback used:', err)
+        }
+      }
+
+      function initZoomPicker() {
+        zoomSelect.innerHTML = ''
+        for (let z = 13; z <= 18; z++) {
+          const opt = document.createElement('option')
+          opt.value = String(z)
+          opt.textContent = `Zoom ${z}`
+          if (z === DEFAULT_UI_ZOOM) opt.selected = true
+          zoomSelect.appendChild(opt)
+        }
+        CURRENT_UI_ZOOM = Number(zoomSelect.value)
+      }
+
+      function syncBoardSizing() {
+        updateBoardGridVars()
+        updateTileSizeForGrid()
+      }
+
+      function renderFromLastLocation() {
+        if (!LAST_LOC) return
+
+        setStatus('Loading tiles...')
+        clearBoards()
+        syncBoardSizing()
+
+        LAST_TILES = makeTiles(LAST_LOC.lat, LAST_LOC.lon)
+        renderBoards(LAST_TILES)
+
+        updateMeta()
+        puzzleEl.classList.remove('hidden')
+        solutionEl.classList.add('hidden')
+        toggleBtn.classList.remove('hidden')
+        reshuffleBtn.classList.remove('hidden')
+        toggleBtn.textContent = 'Show solution'
+        setStatus('')
+      }
+
+      async function generatePuzzle() {
+        try {
+          const q = qInput.value.trim()
+          if (!q) {
+            setStatus('Type a location first.')
+            return
+          }
+
+          CURRENT_STYLE = styleSelect.value || DEFAULT_STYLE
+          CURRENT_STYLE_NAME =
+            styleSelect.selectedOptions[0]?.textContent || CURRENT_STYLE
+          CURRENT_UI_ZOOM = Number(zoomSelect.value) || DEFAULT_UI_ZOOM
+          CURRENT_GRID_SIZE = Number(gridSelect.value) || DEFAULT_GRID_SIZE
+
+          setStatus('Geocoding...')
+          clearBoards()
+          hideSuggestions()
+          syncBoardSizing()
+
+          const loc = await geocode(
+            q,
+            selectedSuggestion?.text === q ? selectedSuggestion.magicKey : ''
+          )
+
+          selectedSuggestion = null
+
+          if (!loc) {
+            setStatus('No matches. Try adding city/state/country.')
+            return
+          }
+
+          LAST_LOC = loc
+          renderFromLastLocation()
+        } catch (err) {
+          console.error(err)
+          setStatus(`Error: ${err.message}`)
+        }
+      }
+
+      styleSelect.addEventListener('change', () => {
+        CURRENT_STYLE = styleSelect.value || DEFAULT_STYLE
+        CURRENT_STYLE_NAME =
+          styleSelect.selectedOptions[0]?.textContent || CURRENT_STYLE
+        if (LAST_LOC && !puzzleEl.classList.contains('hidden')) {
+          renderFromLastLocation()
+        }
+      })
+
+      zoomSelect.addEventListener('change', () => {
+        CURRENT_UI_ZOOM = Number(zoomSelect.value) || DEFAULT_UI_ZOOM
+        if (LAST_LOC && !puzzleEl.classList.contains('hidden')) {
+          renderFromLastLocation()
+        }
+      })
+
+      gridSelect.addEventListener('change', () => {
+        CURRENT_GRID_SIZE = Number(gridSelect.value) || DEFAULT_GRID_SIZE
+        syncBoardSizing()
+        if (LAST_LOC && !puzzleEl.classList.contains('hidden')) {
+          renderFromLastLocation()
+        }
+      })
+
+      qInput.addEventListener('input', () => {
+        selectedSuggestion = null
+        const text = qInput.value.trim()
+
+        clearTimeout(suggestTimer)
+
+        if (text.length < 3) {
+          hideSuggestions()
+          return
+        }
+
+        suggestTimer = setTimeout(async () => {
+          try {
+            const items = await suggestLocations(text)
+            renderSuggestions(items)
+          } catch (err) {
+            console.error(err)
+            hideSuggestions()
+          }
+        }, 220)
+      })
+
+      qInput.addEventListener('keydown', e => {
+        if (!suggestionItems.length && e.key === 'Enter') {
+          e.preventDefault()
+          generatePuzzle()
+          return
+        }
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          activeSuggestionIndex = Math.min(
+            activeSuggestionIndex + 1,
+            suggestionItems.length - 1
+          )
+          highlightActiveSuggestion()
+        }
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0)
+          highlightActiveSuggestion()
+        }
+
+        if (e.key === 'Enter' && activeSuggestionIndex >= 0) {
+          e.preventDefault()
+          applySuggestion(suggestionItems[activeSuggestionIndex])
+          return
+        }
+
+        if (e.key === 'Escape') {
+          hideSuggestions()
+        }
+      })
+
+      document.addEventListener('click', e => {
+        if (!e.target.closest('.search-wrap')) {
+          hideSuggestions()
+        }
+      })
+
+      $('go').addEventListener('click', generatePuzzle)
+
+      reshuffleBtn.addEventListener('click', () => {
+        rerenderPuzzleOnly()
+      })
+
+      toggleBtn.addEventListener('click', () => {
+        const isHidden = solutionEl.classList.contains('hidden')
+        solutionEl.classList.toggle('hidden', !isHidden)
+        toggleBtn.textContent = isHidden ? 'Hide solution' : 'Show solution'
+      })
+
+      CURRENT_GRID_SIZE = Number(gridSelect.value) || DEFAULT_GRID_SIZE
+      syncBoardSizing()
+      initZoomPicker()
+      initStylePicker()
+    </script>
+  </body>
+</html>
