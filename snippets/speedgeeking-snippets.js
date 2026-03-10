@@ -28,12 +28,12 @@ const latLonToTile = (lat, lon, z) => {
   }
 }
 
-// ===== 4) TILE URL =====
-// Static tiles use {z,y,x} and are 512x512 PNGs.
+// ===== 4) SINGLE TILE URL =====
+// Static tiles use {z,y,x} and are 512x512 PNGs
 const tileUrl = (z, x, y) =>
   `${BASE_URL}/${CURRENT_STYLE}/static/tile/${z}/${y}/${x}?token=${ARCGIS_TOKEN}`
 
-// ===== 5) GRID =====
+// ===== 5) NxN GRID =====
 const makeTiles = (lat, lon) => {
   const z = Math.max(0, CURRENT_UI_ZOOM - 1)
   const anchor = latLonToTile(lat, lon, z)
