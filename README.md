@@ -17,6 +17,8 @@ Type a place, pick a suggestion, hit **Generate**, and you get a shuffled map ti
 
 - Run it locally: Download or clone this repo then open `index.html` in your browser
 - Try it here: [https://arcgis-puzzle-game.netlify.app](https://arcgis-puzzle-game.netlify.app)
+- Video tutorial: [https://www.youtube.com/watch?v=xoZJ1bzq5is](link)
+
 
 ## Configure your API key
 
